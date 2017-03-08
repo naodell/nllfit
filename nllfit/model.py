@@ -12,14 +12,28 @@ class Model:
 
     Parameters
     ==========
-    model      : a function describing the model that takes argurements (params, data)
+    pdf        : a function describing the model that takes argurements (params, data)
     parameters : lmfit Parameter object
     '''
     def __init__(self, pdf, parameters):
-        
         self._pdf        = pdf
         self._parameters = parameters
         self.corr        = None
+
+    def get_parameter(self, name, by_value=True):
+        '''
+        Returns parameter parameter value or lmfit Parameter object
+
+        Parameters:
+        ===========
+        name    : key for paramter value
+        by_value: if True returns a list of parameter values, otherwise the
+                  function will return the lmfit Parameters object
+        '''
+        if by_value:
+            return [p.value for p in self._parameters.values()]
+        else:
+            return self._parameters
 
     def get_parameters(self, by_value=False):
         '''
@@ -108,10 +122,10 @@ class Model:
         data: data points where the PDF will be evaluated
         '''
         
-        if isinstance(params, Parameters):
-            params = [params[n].value for n in self._parameters.keys()]
-        elif np.any(params) == None:
+        if np.any(params) == None:
             params = [p.value for p in self._parameters.values()]
+        elif isinstance(params, Parameters):
+            params = [params[n].value for n in self._parameters.keys()]
 
         pdf = self._pdf(data, params)
         nll = -np.sum(np.log(pdf))
@@ -165,6 +179,7 @@ class CombinedModel(Model):
 
         if isinstance(params, np.ndarray):
             self.update_parameters(params)
+
         params = self.get_parameters()
 
         nll         = 0.

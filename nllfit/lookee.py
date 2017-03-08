@@ -9,8 +9,7 @@ from timeit import default_timer as timer
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
-from scipy.optimize import fsolve
-from scipy.stats import chi2, norm
+from scipy.stats import chi2
 from scipy.ndimage.morphology import *
 from scipy.ndimage import *
 from scipy.special import gamma
@@ -76,58 +75,48 @@ def exp_phi_u(u, n_j, k=1):
     
     return chi2.sf(u,k) + np.sum([n*rho_g(u, j+1, k) for j,n in enumerate(n_j)], axis=0)
 
-def lee_objective(a, Y, dY, X, k0, fix_dof=False):
+
+def lee_objective(a, Y, dY, X, ndim, kvals, scales):
     '''
-    Defines the objective function for regressing the <EC> of our chi2 field.
+    Defines the objective function for regressing the <EC> of the chi-squared field.
     The minimization should be done on the quadratic cost weighted by the
-    inverse of the variance on the measurement.  There is an additional term
-    which will enforce preference for the fit result being greater than the
-    data point.  The reasoning is that we would like to have an upper bound on
-    our tails (that is, we are being conservative here).
+    inverse of the variance on the measurement.  
 
     Parameters
     ----------
-    a  : list of parameters (a[0] is d.o.f., a[1:] are the expansion coefficients)
-    Y  : target data
-    dY : variance on the data
-    X  : independent variable values corresponding to values of Y
+    a      : parameters (list of GV expansion coefficients)
+    Y      : expectation of the E.C. from data
+    dY     : variance on the E.C. from data
+    X      : excursion level of the E.C., u.
+    ndim   : number of dimensions scanned over; also number of parameters per k
+    kvals  : list of d.o.f. of chi-squared field
+    scales : contribution from each chi-squared component for fixed excursions
     '''
 
-    if fix_dof:
-        ephi = exp_phi_u(X, a[1:], k = k0)
-    else:
-        ephi = exp_phi_u(X, a[1:], k = a[0])
+    ephi = np.zeros(X.size)
+    for i, (s, k) in enumerate(zip(scales, kvals)):
+        ephi += s*exp_phi_u(X, a[i*ndim:(i+1)*ndim], k) 
 
-    quadratic_cost = np.sum((Y - ephi)**2/dY)
-
-    ### upper bound
-    ubound = np.sum(ephi < Y)/Y.size 
-
-    objective = quadratic_cost # essential
-    objective += 10*ubound # ad-hoc
-
+    objective = np.sum((Y - ephi)**2/dY)
     return objective
 
-def lee_nD(max_local_sig, u, phiscan, j=1, k=1, fix_dof=False):
+def get_GV_coefficients(u, phiscan, p_init, p_bnds, kvals, scales):
     '''
     Carries GV style look elsewhere corrections with a twist.  Allows for an
-    arbitrary number of search dimensions/nuisance parameters and allows the
-    number of degrees of freedom of the chi2 random field to be a parameter of
     the model.  Cool shit.
+    number of degrees of freedom of the chi2 random field to be a parameter of
+    the model.
 
     Parameters
     ----------
-    max_local_sig : observed local significance (assumes sqrt(-2*q))
-    u             : array of scan thresholds
-    phiscan       : scan of EC 
-    j             : numbers of search dimensions to calculate
-    k             : assumed numbers of degrees of freedom of chi2 field. If not
-                    specified it will be a floating parmeter in the LEE estimation.
-    do_fit        : by default the d.o.f. and the amplitude of the LEE
-                    expansion terms will be allowed to vary; if False the d.o.f. will be fixed
-                    to the input value and the expansion coefficients will be determined by
-                    picking a few point from the data.
+    u       : array of scan thresholds
+    phiscan : scans of the E.C. of multiple likelihood scans 
+    j       : numbers of search dimensions in the likelihood ratio scan
+    kvals   : assumed numbers of degrees of freedom of chi2 field. If not
+              specified it will be a floating parmeter in the LEE estimation.
+    scales  : contribution from each d.o.f. component for the 0th order E.C.
     '''
+
     exp_phi = phiscan.mean(axis=0)
     var_phi = phiscan.var(axis=0)
 
@@ -140,39 +129,50 @@ def lee_nD(max_local_sig, u, phiscan, j=1, k=1, fix_dof=False):
     ### if variance on phi is 0, use the poisson error on dY ###
     var_phi[var_phi==0] = 1./np.sqrt(phiscan.shape[0])
     
-    print 'fit the EC with scan free parameters N_j and k...'
-    if fix_dof:
-        k_bnds = [(k, k)]
-    else:
-        k_bnds = [(1., np.inf)]
-
-    bnds   = k_bnds + j*[(0., np.inf)]
-    p_init = [k] + j*[1.,]
+    ndim = int(len(p_init)/len(kvals))
     result = minimize(lee_objective,
                       p_init,
                       method = 'SLSQP',
-                      args   = (exp_phi, var_phi, u, k, fix_dof),
-                      bounds = bnds
+                      args   = (exp_phi, var_phi, u, ndim, kvals, scales),
+                      bounds = p_bnds
                       )
-    k = result.x[0] if result.x[0] >= 1. else 1.
-    n = result.x[1:]
+    return result.x
+    #return np.reshape(result.x, (len(kvals), ndim))
 
-    p_global = exp_phi_u(max_local_sig**2, n, k)
+def get_p_global(qmax, kvals, nvals, scales): 
+    '''
+    Calculate the global p value and z scores.
 
-    return k, n, p_global
+    Parameters:
+    ===========
+    qmax: observed excursion of the likelihood ratio
+    k: d.o.f. of the chi-squared field
+    nvals: array of GV coefficients
+    '''
+    
+    p_global = 0
+    for k, n, scale in zip(kvals, nvals, scales):
+        p_global += scale*exp_phi_u(qmax, n, k)
+    return p_global
 
-def validation_plots(u, phiscan, qmax, Nvals, kvals, channel):
-    '''Check that the GV tails look okay'''
+def gv_validation_plot(u, phiscan, qmax, nvals, kvals, scales, channel):
+    '''
+    Overlays expectation of the E.C., the SF of the likelihood scan, and the GV prediction. 
 
-    ### Get the mean and variance from the phi scan ###
-    phiscan = np.array(phiscan)
-    exp_phi = np.mean(phiscan, axis=0)
-    var_phi = np.var(phiscan, axis=0)
-    qmax    = np.array(qmax)
-
+    Parameters
+    ==========
+    u       : excursion levels of the likelihood ration
+    phiscan : E.C. for the q scans
+    qmax    : maximum of q for each of the scans
+    nvals   : coefficients of the GV prediction
+    k       : d.o.f. of the chi-squared field
+    scale   : contribution from different d.o.f. components of the chi-squared field
+    channel : name of channel under consideration
+    '''
 
     ### Construct the survival function spectrum from maximum q of each scan ###
-    hval, hbins, _ = plt.hist(qmax, bins=30, range=(0.,30.), cumulative=True)
+    hval, hbins = np.histogram(qmax, bins=30, range=(0.,30.))
+    hval = np.cumsum(hval)
     hval = hval.max() - hval
     herr = np.sqrt(hval)
     pval = hval/hval.max()
@@ -181,45 +181,46 @@ def validation_plots(u, phiscan, qmax, Nvals, kvals, channel):
     perr = np.concatenate(([0], perr))
     plt.close()
 
+    ### Get the mean and variance from the phi scan ###
+    exp_phi = np.mean(phiscan, axis=0)
+    var_phi = np.var(phiscan, axis=0)
+    exp_phi_total = np.zeros(u.size)
+    for k, n, scale in zip(kvals, nvals, scales):
+        exp_phi_total += scale*exp_phi_u(u, n, k)
+
     ### Remove points where values are 0 ###
     pmask = pval > 0.
     emask = exp_phi > 0.
 
-    ### Make the plots ###
+    ### Plot SF(u) from data ###
     fig, ax = plt.subplots()
     ax.plot(hbins[pmask], pval[pmask], 'm-', linewidth=2)
-    ax.plot(u[emask], exp_phi[emask], 'k-', linewidth=2.)
     ax.fill_between(hbins, pval-perr, pval+perr, color='m', alpha=0.25, interpolate=True)
-    for N ,k in zip(Nvals, kvals):
-        ax.plot(u, exp_phi_u(u, N, k), '--', linewidth=2.)
 
+    ### Plot the E[phi(u)] from the data and the predicted excursions ###
+    ax.plot(u[emask], exp_phi[emask], 'k-', linewidth=2.5)
+    ax.plot(u, exp_phi_total, 'b--', linewidth=2.5)
 
     ### Stylize ###
-    ax.legend([r'$1 -  \mathrm{CDF}(q(\theta))$', r'$\overline{\phi}_{\mathrm{sim.}}$'] 
-            + [r'$\overline{{\phi}}_{{ \mathrm{{th.}} }}; k={0}$'.format(k) if type(k) == int 
-                else r'$\overline{{\phi}}_{{ \mathrm{{th.}} }}; k={0:.2f}$'.format(k) for k in kvals])
+    legend_text = [r'$\sf SF(q(\theta))$', 
+                   r'$\sf \overline{\phi}_{sim.}$', 
+                   r'$\sf \overline{\phi}_{th.}$'
+                  ]
 
+    ax.legend(legend_text)
     ax.set_yscale('log')
     ax.set_ylim(1e-5, 5*np.max(phiscan))
-    ax.set_ylabel(r'$\mathbb{\mathrm{P}}[q_{\mathrm{max}} > u]$')
+    ax.set_ylabel(r'$\sf \mathbb{P}[q_{max} > u]$')
     ax.set_xlim(0, 30)
-    ax.set_xlabel(r'$u$')
-    ax.set_title(channel.replace('_', ' '))
-    fig.savefig('plots/GV_validate_{0}.png'.format(channel))
-    fig.savefig('plots/GV_validate_{0}.pdf'.format(channel))
-    plt.close()
+    ax.set_xlabel(r'u')
+    #ax.set_title(channel.replace('_', ' '))
+    ax.grid()
 
-def excursion_plot_1d(x, qscan, u1, suffix, path):
-    fig, ax = plt.subplots()
-    ax.set_xlabel(r'$M_{\mu\mu}$ [GeV]')
-    ax.set_ylabel('q')
-    ax.set_xlim([12., 70.])
-    ax.set_ylim([0., 25.])
-    ax.plot(x, qscan, 'r-', linewidth=2.)
-    ax.plot([12., 70.], [u1, u1], 'k-', linewidth=2.)
-
-    fig.savefig('{0}/excursion_1D_{1}.pdf'.format(path, suffix))
-    fig.savefig('{0}/excursion_1D_{1}.png'.format(path, suffix))
-    plt.close()
+    if channel == None:
+        plt.show()
+    else:
+        fig.savefig('plots/fits/GV_validate_{0}.png'.format(channel))
+        fig.savefig('plots/fits/GV_validate_{0}.pdf'.format(channel))
+        plt.close()
 
 
