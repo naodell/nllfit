@@ -56,7 +56,7 @@ class NLLFitter:
         f_obj = lambda a: self._model.calc_nll(x, a)
         hcalc = nd.Hessian(f_obj, step=0.01, method='central', full_output=True) 
         hobj  = hcalc(params)[0]
-        hinv  = np.linalg.inv(hobj)
+        hinv  = np.linalg.pinv(hobj)
 
         # get uncertainties on parameters
         sig = np.sqrt(hinv.diagonal())
