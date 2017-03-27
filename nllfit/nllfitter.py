@@ -52,6 +52,15 @@ class NLLFitter:
         return nll + self._lmult[0]*np.sum(np.abs(params)) + self._lmult[1]*np.sum(params**2)
 
     def _get_corr(self, x, params):
+        '''
+        Calculates covariance matrix for model parameters by calculating the
+        Hessian of the NLL conditioned on the dataset being fit to.
+
+        Parameters:
+        ===========
+        x: the data
+        params: parameter values at which the Hessian will be evaluated.
+        '''
 
         f_obj = lambda a: self._model.calc_nll(x, a)
         hcalc = nd.Hessian(f_obj, step=0.01, method='central', full_output=True) 
