@@ -150,8 +150,8 @@ def generator(pdf, bounds, ntoys):
     Parameters:
     ===========
     pdf             : the pdf that will be sampled to produce the synthetic data
-    ntoys           : number of synthetic datasets to be produced
     bounds          : specify (lower, upper) bounds for the toy data
+    ntoys           : number of synthetic datasets to be produced
     '''
     
     # Generate random numbers and map into domain defined by bounds.  Generate
@@ -240,14 +240,14 @@ def plot_pvalue_scan_2D(qscan, x, y, path, nchannels=1):
     plt.close()
 
 
-def fit_plot_1D(data, xlim, sig_model, bg_model, suffix, path='plots'):
-    N       = data.size
-    binning = 2.
-    nbins   = 29.
+def fit_plot_1D(data, sig_model, bg_model, xlim, nbins=20, suffix='mumu', path=None):
 
     # Scale pdfs and data from [-1, 1] back to the original values
+    N       = data.size
+    binning = (xlim[1] - xlim[0])/nbins
+
     params  = sig_model.get_parameters()
-    x       = np.linspace(12, 70, num=10000)
+    x       = np.linspace(xlim[0], xlim[1], num=10000)
     y_sig   = N*binning*sig_model.pdf(x) 
     y_bg1   = (1 - params['A'])*N*binning*bg_model.pdf(x, params) 
     y_bg2   = N*binning*bg_model.pdf(x)
@@ -263,35 +263,36 @@ def fit_plot_1D(data, xlim, sig_model, bg_model, suffix, path='plots'):
     ax.plot(x , y_bg1 , 'b--' , linewidth=2.5)
     ax.plot(x , y_bg2 , 'r-.' , linewidth=2.5)
     ax.errorbar(bincenters, h[0], yerr=binerrs, 
-                fmt='ko', capsize=0, elinewidth=2, markersize=9)
+                fmt='ko', capsize=0, elinewidth=2, markersize=5)
     ax.legend(['BG+Sig.', 'BG', 'BG only', 'Data']) 
 
-    if suffix[0] == 'mumu':
+    if suffix == 'mumu':
         ax.set_xlabel(r'$\sf m_{\mu\mu}$ [GeV]')
-    elif suffix[0] == 'emu':
+    elif suffix == 'emu':
         ax.set_xlabel(r'$\sf m_{e\mu}$ [GeV]')
-    elif suffix[0] == 'ee':
+    elif suffix == 'ee':
         ax.set_xlabel(r'$\sf m_{ee}$ [GeV]')
-    elif suffix[0] == 'hgg':
+    elif suffix == 'hgg':
         ax.set_title(r'$\sf h(125)\rightarrow \gamma\gamma$')
         ax.set_xlabel(r'$\sf m_{\gamma\gamma}$ [GeV]')
     else:
         ax.set_xlabel('x')
 
     ax.set_ylabel('Entries / 2 GeV')
-    ax.set_ylim([0., 1.65*np.max(h[0])])
+    ax.set_ylim([0., 1.4*np.max(h[0])])
     ax.set_xlim(xlim)
     ax.grid()
 
     ### Add lumi text ###
-    ax.text(0.06, 0.9, r'$\bf CMS$', fontsize=30, transform=ax.transAxes)
-    ax.text(0.17, 0.9, r'$\it Preliminary $', fontsize=20, transform=ax.transAxes)
+    #ax.text(0.06, 0.9, r'$\bf CMS$', fontsize=30, transform=ax.transAxes)
+    #ax.text(0.17, 0.9, r'$\it Preliminary $', fontsize=20, transform=ax.transAxes)
     #ax.text(0.68, 1.01, r'$\sf{19.7\,fb^{-1}}\,(\sqrt{\it{s}}=8\,\sf{TeV})$', fontsize=20, transform=ax.transAxes)
 
 
-    fig.savefig('{0}/mass_fit_{1[1]}_{1[2]}.pdf'.format(path, suffix))
-    fig.savefig('{0}/mass_fit_{1[1]}_{1[2]}.png'.format(path, suffix))
-    plt.close()
+    if path != None:
+        fig.savefig('{0}/mass_fit_{1[1]}_{1[2]}.pdf'.format(path, suffix))
+        fig.savefig('{0}/mass_fit_{1[1]}_{1[2]}.png'.format(path, suffix))
+        plt.close()
 
 def ks_test(data, model_pdf, xlim=(-1, 1), make_plots=False, suffix=None):
     '''

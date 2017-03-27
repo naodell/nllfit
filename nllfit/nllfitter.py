@@ -58,8 +58,8 @@ class NLLFitter:
 
         Parameters:
         ===========
-        x: the data
-        params: parameter values at which the Hessian will be evaluated.
+        x      : the data
+        params : parameter values at which the Hessian will be evaluated.
         '''
 
         f_obj = lambda a: self._model.calc_nll(x, a)
@@ -210,4 +210,3 @@ class ScanParameters:
         '''
         scan_vals = list(product(*self.scans))
         return scan_vals, self.div
-
