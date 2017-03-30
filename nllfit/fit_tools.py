@@ -258,7 +258,7 @@ def fit_plot_1D(data, sig_model, bg_model, xlim, nbins=20, suffix='mumu', path=N
     binerrs     = np.sqrt(h[0]) 
     plt.close()
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(6,6))
     ax.plot(x , y_sig , 'b-'  , linewidth=2.5)
     ax.plot(x , y_bg1 , 'b--' , linewidth=2.5)
     ax.plot(x , y_bg2 , 'r-.' , linewidth=2.5)
@@ -273,8 +273,12 @@ def fit_plot_1D(data, sig_model, bg_model, xlim, nbins=20, suffix='mumu', path=N
     elif suffix == 'ee':
         ax.set_xlabel(r'$\sf m_{ee}$ [GeV]')
     elif suffix == 'hgg':
-        ax.set_title(r'$\sf h(125)\rightarrow \gamma\gamma$')
+        ax.set_title(r'$\sf h_{0}(125)\rightarrow \gamma\gamma$')
         ax.set_xlabel(r'$\sf m_{\gamma\gamma}$ [GeV]')
+    elif suffix == 'hzz':                                    
+        ax.set_title(r'$\sf h_{0}(125)\rightarrow 4\ell$')
+        ax.set_xlabel(r'$\sf m_{4\ell}$ [GeV]')       
+
     else:
         ax.set_xlabel('x')
 
