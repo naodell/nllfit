@@ -157,11 +157,11 @@ def gv_validation_plot(u, phiscan, qmax, nvals, kvals, scales, channel):
     '''
 
     ### Construct the survival function spectrum from maximum q of each scan ###
-    hval, hbins = np.histogram(qmax, bins=30, range=(0.,30.), normed=True)
-    hval = 1 - np.cumsum(hval)
+    hval, hbins = np.histogram(qmax, bins=300, range=(0.,30.))
+    pval = 1 - np.cumsum(hval)/qmax.size
     herr = np.sqrt(hval)
-    pval = np.concatenate(([1], hval))
-    perr = np.concatenate(([0], herr))
+    pval = np.concatenate(([1], pval))
+    perr = np.concatenate(([1], herr))
     plt.close()
 
     ### Get the mean and variance from the phi scan ###
