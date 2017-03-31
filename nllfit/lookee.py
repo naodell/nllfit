@@ -116,6 +116,11 @@ def get_GV_coefficients(u, phiscan, p_init, p_bnds, kvals, scales):
 
     exp_phi = phiscan.mean(axis=0)
     var_phi = phiscan.var(axis=0)
+
+    # only consider non-zero entries
+    mask = exp_phi > 0.
+    exp_phi, var_phi, u = exp_phi[mask], var_phi[mask], u[mask]
+    
     ndim    = int(len(p_init)/len(kvals))
     result  = minimize(lee_objective,
                        p_init,
@@ -157,30 +162,30 @@ def gv_validation_plot(u, phiscan, qmax, nvals, kvals, scales, channel):
     '''
 
     ### Construct the survival function spectrum from maximum q of each scan ###
-    hval, hbins = np.histogram(qmax, bins=300, range=(0.,30.))
+    hval, hbins = np.histogram(qmax, bins=30, range=(0.,30.))
     pval = 1 - np.cumsum(hval)/qmax.size
-    herr = np.sqrt(hval)
+    herr = np.sqrt(np.cumsum(hval))/qmax.size
     pval = np.concatenate(([1], pval))
-    perr = np.concatenate(([1], herr))
+    perr = np.concatenate(([0], herr))
     plt.close()
 
     ### Get the mean and variance from the phi scan ###
     exp_phi = np.mean(phiscan, axis=0)
     var_phi = np.var(phiscan, axis=0)
+
     exp_phi_total = np.zeros(u.size)
     for k, n, scale in zip(kvals, nvals, scales):
         exp_phi_total += scale*exp_phi_u(u, n, k)
 
-    ### Remove points where values are 0 ###
-    pmask = pval > 0.
-    emask = exp_phi > 0.
-
     ### Plot SF(u) from data ###
     fig, ax = plt.subplots()
-    ax.plot(hbins[pmask], pval[pmask], 'm-', linewidth=2)
+    pmask = pval > 0.
+    pval, perr, hbins = pval[pmask], perr[pmask], hbins[pmask]
+    ax.plot(hbins, pval, 'm-', linewidth=2)
     ax.fill_between(hbins, pval-perr, pval+perr, color='m', alpha=0.25, interpolate=True)
 
     ### Plot the E[phi(u)] from the data and the predicted excursions ###
+    emask = exp_phi > 0.
     ax.plot(u[emask], exp_phi[emask], 'k-', linewidth=2.5)
     ax.plot(u, exp_phi_total, 'b--', linewidth=2.5)
 
