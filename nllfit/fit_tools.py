@@ -12,7 +12,7 @@ from matplotlib.colors import LogNorm
 from scipy.stats import chi2, norm 
 from scipy import integrate
 from scipy.optimize import minimize
-from scipy.special import wofz
+from scipy.special import wofz, erf
 
 import numdifftools as nd
 import lmfit
@@ -71,17 +71,47 @@ def voigt(x, a):
         y = np.real(wofz(z))/(sigma*np.sqrt(2*np.pi))
         return y
 
-def bg_pdf(x, a): 
+def crystal_ball(x, a):
     '''
-    Second order Legendre Polynomial with constant term set to 0.5.
+    Crystal ball is a power law stitched together with a Gaussian that accounts
+    for lossy measurements.
+
+    Parameters:
+    ===========
+    x: data
+    a: model parameters (mean, alpha, sigma, n)
+    '''
+
+    x0    = a[0]
+    sigma = a[1]
+    n     = a[2]
+    alpha = a[3]
+
+    A = np.power(n/np.abs(alpha), n)*np.exp(-alpha**2/2.)
+    B = n/np.abs(alpha) - np.abs(alpha)
+    C = n/(np.abs(alpha)*(n - 1.))*np.exp(-alpha**2/2.)
+    D = np.sqrt(np.pi/2.)*(1. + erf(np.abs(alpha)/np.sqrt(2)))
+    N = 1./(sigma*(C + D))
+
+    z = (x - x0)/sigma
+
+    if z > -alpha:
+        return N*np.exp(-z**2/2.)
+    else:
+        return N*A*np.power(B - z, -n)
+
+
+def legendre(x, a, xlim=(-1, 1)): 
+    '''
+    Nth order Legendre Polynomial with constant term set to 0.5.
 
     Parameters:
     ===========
     x: data
     a: model parameters (a1 and a2)
     '''
-    z   = scale_data(x, xmin=12, xmax=70)
-    fx  = legval(z, [0.5, a[0], a[1]])*2/(70 - 12)
+    z   = scale_data(x, xmin=xlim[0], xmax=xlim[1])
+    fx  = legval(z, [0.5] + a)*2/(xlim[1] - xlim[0])
     return fx
 
 def sig_pdf(x, a, normalize=False):
