@@ -4,52 +4,53 @@ from itertools import product
 import numpy as np
 import numdifftools as nd
 from scipy.optimize import minimize
-from lmfit import Parameter, Parameters, report_fit
-from tqdm import tqdm
+from lmfit import report_fit
+from functools import partial
+
 
 class NLLFitter:
     '''
     Class for estimating PDFs using negative log likelihood minimization.  Fits
-    a Model class to a dataset.    
+    a Model class to a dataset.
 
     Parameters:
     ==========
     model    : a Model object or and array of Model objects
     data     : the dataset or datasets we wish to carry out the modelling on
     min_algo : algorith used for minimizing the nll (uses available scipy.optimize algorithms)
-	verbose  : control verbosity of fit method
+    verbose  : control verbosity of fit method
     fcons    : constraint function; should take arguments of the form (sig_pdf, params)
     '''
     def __init__(self, model, min_algo='SLSQP', verbose=True, lmult=(0., 0.), fcons=None):
-       self._model    = model
-       self.min_algo  = min_algo
-       self.verbose   = verbose
-       self._lmult    = lmult
-       self._fcons    = fcons
+        self._model    = model
+        self.min_algo  = min_algo
+        self.verbose   = verbose
+        self._lmult    = lmult
+        self._fcons    = fcons
 
     def _objective(self, params, data):
         '''
         Default objective function.  Perhaps it would make sense to make this
         easy to specify.  Includes L1 and L2 regularization terms which might
         be problematic...
-        
+
         Parameters:
         ==========
         a: model parameters in an numpy array
         '''
 
         model_params = self._model.get_parameters()
-        params = np.array([params[i] if p.vary else p.value 
-                        for i,p in enumerate(model_params.itervalues())])
+        params = np.array([params[i] if p.vary else p.value
+                           for i, p in enumerate(model_params.itervalues())])
         obj = 0.
-        if self._fcons:
-            obj += self._fcons(self._model._pdf, params)
+        #if self._fcons:
+        #    obj += self._fcons(self._model._pdf, params)
 
-        nll = self._model.calc_nll(data, params)
+        nll = self._model.calc_nll(params, data)
         if nll is not np.nan:
             obj += nll
 
-        return nll + self._lmult[0]*np.sum(np.abs(params)) + self._lmult[1]*np.sum(params**2)
+        return obj
 
     def _get_corr(self, x, params):
         '''
@@ -62,8 +63,8 @@ class NLLFitter:
         params : parameter values at which the Hessian will be evaluated.
         '''
 
-        f_obj = lambda a: self._model.calc_nll(x, a)
-        hcalc = nd.Hessian(f_obj, step=0.01, method='central', full_output=True) 
+        f_obj = partial(self._model.calc_nll, data=x)
+        hcalc = nd.Hessian(f_obj, step=0.01, method='central', full_output=True)
         hobj  = hcalc(params)[0]
         hinv  = np.linalg.pinv(hobj)
 
@@ -75,7 +76,7 @@ class NLLFitter:
 
         return sig, corr_matrix
 
-    def fit(self, data, params_init=None, calculate_corr=True):
+    def fit(self, data, params_init=None, calculate_corr=True, mode='local'):
         '''
         Fits the model to the given dataset using scipy.optimize.minimize.
         Returns the fit result object.
@@ -88,20 +89,31 @@ class NLLFitter:
                          calculated.  If true, this will do a numerical calculation of the
                          covariance matrix based on the currenct objective function about the
                          minimum determined from the fit
+        mode           : determines whether optimize.minize ('local') or optimize.basinhopping ('global') is used
         '''
 
-        if params_init: 
+        if params_init:
             self._model.update_params(params_init)
         else:
             params_init = self._model.get_parameters(by_value=True)
 
-        result = minimize(self._objective, 
-                          params_init,
-                          method = self.min_algo, 
-                          bounds = self._model.get_bounds(),
-                          #constraints = self._model.get_constraints(),
-                          args   = (data)
-                          )
+        if mode == 'local':
+            result = minimize(self._objective,
+                              params_init,
+                              method=self.min_algo,
+                              bounds=self._model.get_bounds(),
+                              #constraints = self._model.get_constraints(),
+                              args=(data)
+                              )
+        #elif mode == 'global':
+        #    result = basinhopping(self._objective,
+        #                          params_init,
+        #                          method=self.min_algo,
+        #                          bounds=self._model.get_bounds(),
+        #                          #constraints = self._model.get_constraints(),
+        #                          args=(data)
+        #                         )
+
         if self.verbose:
             print 'Fit finished with status: {0}'.format(result.status)
 
@@ -119,7 +131,7 @@ class NLLFitter:
                 print '[[Correlation matrix]]'
                 print corr, '\n'
 
-        return result	
+        return result
 
     def scan(self, scan_params, data, amps=None):
         '''
@@ -131,7 +143,7 @@ class NLLFitter:
         data        : dataset to fit the models to
         amps        : indices of signal amplitude parameters
         '''
-        
+
         ### Save bounds for parameters to be scanned so that they can be reset
         ### when finished
         saved_bounds = {}
@@ -140,7 +152,7 @@ class NLLFitter:
             saved_bounds[name] = (params[name].min, params[name].max)
 
         nllscan     = []
-        dofs        = [] # The d.o.f. of the field will vary depending on the amplitudes
+        dofs        = []  # The d.o.f. of the field will vary depending on the amplitudes
         best_params = 0.
         nll_min     = 1e9
         scan_vals, scan_div = scan_params.get_scan_vals()
@@ -152,16 +164,16 @@ class NLLFitter:
 
             ### Get initialization values
             params_init = [p.value for p in params.values()]
-            result = minimize(self._objective, 
+            result = minimize(self._objective,
                               params_init,
-                              method = self.min_algo, 
+                              method = self.min_algo,
                               bounds = self._model.get_bounds(),
                               #constraints = self._model.get_constraints(),
                               args   = (data)
                               )
 
-            if result.status == 0:
-                nll = self._model.calc_nll(data, result.x)
+            if result.status in (0, 8):
+                nll = self._model.calc_nll(result.x, data)
                 nllscan.append(nll)
                 if nll < nll_min:
                     best_params = result.x

@@ -1,8 +1,7 @@
 from __future__ import division
-from timeit import default_timer as timer
 
 import numpy as np
-from lmfit import Parameter, Parameters
+from lmfit import Parameters
 
 class Model:
     '''
@@ -51,9 +50,9 @@ class Model:
 
     def get_bounds(self):
         '''
-        Return list of tuples with the bounds for each parameter.  
+        Return list of tuples with the bounds for each parameter.
         '''
-        return [(p.min, p.max) for n,p in self._parameters.iteritems()]
+        return [(p.min, p.max) for n, p in self._parameters.iteritems()]
 
     def set_bounds(self, param_name, xmin, xmax):
         '''
@@ -64,9 +63,9 @@ class Model:
 
     def get_constranints(self):
         '''
-        Return list of tuples with the bounds for each parameter.  
+        Return list of tuples with the bounds for each parameter.
         '''
-        return [p.expr for n,p in self._parameters.iteritems()]
+        return [p.expr for n, p in self._parameters.iteritems()]
 
     def pdf(self, data, params=None):
         '''
@@ -84,7 +83,6 @@ class Model:
         Change the value of named parameter.
         '''
         self._parameters[param_name].value = value
-
 
     def update_parameters(self, params, covariance=None):
         '''
@@ -111,7 +109,7 @@ class Model:
         if covariance:
             self.corr = covariance[1]
 
-    def calc_nll(self, data, params=None):
+    def calc_nll(self, params, data):
         '''
         Return the negative log likelihood of the model given some data.
 
@@ -121,8 +119,7 @@ class Model:
            object.  If not specified, the current model parameters will be used
         data: data points where the PDF will be evaluated
         '''
-        
-        if np.any(params) == None:
+        if np.any(params) is None:
             params = [p.value for p in self._parameters.values()]
         elif isinstance(params, Parameters):
             params = [params[n].value for n in self._parameters.keys()]
@@ -131,9 +128,11 @@ class Model:
         nll = -np.sum(np.log(pdf))
         return nll
 
+
 class CombinedModel(Model):
     '''
-    Combines multiple models so that their PDFs can be estimated simultaneously.
+    Combines multiple models so that their PDFs can be estimated
+    simultaneously.
 
     Parameters
     ==========
@@ -150,8 +149,8 @@ class CombinedModel(Model):
         names and values are tuples with the first entry being the parameter
         value and the second being the uncertainty on the parameter.
         '''
-        params = Parameters() 
-        nparams = [] # keep track of how many parameters each model has
+        params = Parameters()
+        nparams = []  # keep track of how many parameters each model has
         for m in self.models:
             p = m.get_parameters()
             nparams.append(len(p))
@@ -159,7 +158,7 @@ class CombinedModel(Model):
         self._parameters = params
         self._nparams = nparams
 
-    def calc_nll(self, X, params=None):
+    def calc_nll(self, params, data):
         '''
         Wrapper for Model.calc_nll.  Converts params to an lmfit Parameter
         object which can then be unpacked by Model.calc_nll.  (Probably not the
@@ -168,11 +167,11 @@ class CombinedModel(Model):
 
         Parameters"
         ===========
-        X: an array of datasets; one dataset per model
         params: parameters of the combined model
+        data: an array of datasets; one dataset per model
         '''
 
-        if len(X) is not len(self.models):
+        if len(data) is not len(self.models):
             print 'The number of datasets must be the same as the number of models!!!'
             print 'There are {0} models'.format(len(self.models))
             return
@@ -184,10 +183,8 @@ class CombinedModel(Model):
 
         nll         = 0.
         param_count = 0
-        for i, (m, x) in enumerate(zip(self.models, X)):
+        for i, (m, x) in enumerate(zip(self.models, data)):
             nll         += m.calc_nll(x, params)
             param_count += self._nparams[i]
 
         return nll
-
-

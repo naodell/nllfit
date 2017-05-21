@@ -6,7 +6,7 @@ def readme():
     return f.read()
 
 setup(name='NLLFitter',
-    version='0.1',
+    version='0.0.2',
     description='NLL fitting tools for bump hunting.',
     url='https://github.com/naodell/amumu',
     author='Nathaniel Odell',
