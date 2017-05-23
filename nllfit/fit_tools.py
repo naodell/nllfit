@@ -92,13 +92,12 @@ def crystal_ball(x, a):
     n     = a[2]
     alpha = np.abs(a[3])
 
+    z = (x - x0)/sigma
     A = np.power(n/alpha, n)*np.exp(-alpha**2/2.)
     B = n/alpha - alpha
     C = n/(alpha*(n - 1.))*np.exp(-alpha**2/2.)
     D = np.sqrt(np.pi/2.)*(1. + erf(alpha/np.sqrt(2)))
     N = 1./(sigma*(C + D))
-
-    z = (x - x0)/sigma
 
     if type(z) == np.ndarray:
         zplus, zminus = z[z > -alpha], z[z <= -alpha]
@@ -122,13 +121,34 @@ def legendre(x, a, xlim=(-1, 1)):
     x: data
     a: model parameters (a1 and a2)
     '''
-    z   = scale_data(x, xmin=xlim[0], xmax=xlim[1])
-    fx  = legval(z, [0.5] + a)*2./(xlim[1] - xlim[0])
-    return fx
+
+    z = scale_data(x, xmin=xlim[0], xmax=xlim[1])
+    f = legval(z, [0.5] + a)*2./(xlim[1] - xlim[0])
+
+    return f
+
+@jit
+def smeared_exp(x, a):
+    '''
+    An exponential convolved with a Gaussian.
+
+    Parameters:
+    ===========
+    x: data
+    a: parameters (tau, sigma)
+    '''
+
+    tau    = a[0]
+    sigma  = a[1]
+    f      = 1./(2*tau) * np.exp(-x/tau + sigma**2/(2*tau**2))
+    f     *= (1 - erf((sigma**2/tau - x)/(sigma*np.sqrt(2))))
+
+    return f
 
 
 # toy MC p-value calculator #
 def calc_local_pvalue(N_bg, var_bg, N_sig, var_sig, ntoys=1e7):
+
     print ''
     print 'Calculating local p-value and significance based on {0} toys...'.format(int(ntoys))
     toys    = rng.normal(N_bg, var_bg, int(ntoys))
