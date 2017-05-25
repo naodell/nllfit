@@ -128,23 +128,42 @@ def legendre(x, a, xlim=(-1, 1)):
     return f
 
 @jit
-def smeared_exp(x, a):
+def smeared_exp(x, tau, sigma):
     '''
     An exponential convolved with a Gaussian.
 
     Parameters:
     ===========
     x: data
-    a: parameters (tau, sigma)
+    tau: lifetime of exponential
+    sigma: width of Gaussian convolution kernel
     '''
 
-    tau    = a[0]
-    sigma  = a[1]
-    f      = 1./(2*tau) * np.exp(-x/tau + sigma**2/(2*tau**2))
-    f     *= (1 - erf((sigma**2/tau - x)/(sigma*np.sqrt(2))))
+    f  = 1./(2*tau) * np.exp(-x/tau + sigma**2/(2*tau**2))
+    f *= (1 - erf((sigma**2/tau - x)/(sigma*np.sqrt(2))))
 
     return f
 
+@jit
+def double_exp(x, a):
+    '''
+    Double sided exponentional distribution.
+
+    Parameters:
+    ===========
+    x: data
+    tau: inverse decay constant
+    '''
+
+    tau = a[0]
+    if type(x) == np.ndarray:
+        x[x > 0.], x[x <= 0.]  = tau*np.exp(-x/tau), tau*np.exp(x/tau)
+        return x
+    else:
+        if x > 0.:
+            return tau*np.exp(-x/tau)
+        else:
+            return tau*np.exp(x/tau)
 
 # toy MC p-value calculator #
 def calc_local_pvalue(N_bg, var_bg, N_sig, var_sig, ntoys=1e7):
