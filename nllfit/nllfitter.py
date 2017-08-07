@@ -1,4 +1,7 @@
-from __future__ import division
+'''
+nll fitter base class
+'''
+
 from itertools import product
 
 import numpy as np
@@ -40,8 +43,8 @@ class NLLFitter:
         '''
 
         model_params = self._model.get_parameters()
-        params = np.array([params[i] if p.vary else p.value
-                           for i, p in enumerate(model_params.itervalues())])
+        params       = np.array([params[i] if p.vary else p.value
+                                 for i, p in enumerate(model_params.values())])
         obj = 0.
         #if self._fcons:
         #    obj += self._fcons(self._model._pdf, params)
@@ -115,7 +118,7 @@ class NLLFitter:
         #                         )
 
         if self.verbose:
-            print 'Fit finished with status: {0}'.format(result.status)
+            print('Fit finished with status: {0}'.format(result.status))
 
         if result.status == 0:
             if calculate_corr:
@@ -127,9 +130,9 @@ class NLLFitter:
             if self.verbose:
                 report_fit(self._model.get_parameters(), show_correl=False)
                 #report_fit(result, show_correl=False)
-                print ''
-                print '[[Correlation matrix]]'
-                print corr, '\n'
+                print('')
+                print('[[Correlation matrix]]')
+                print(corr, '\n')
 
         return result
 

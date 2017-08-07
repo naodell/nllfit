@@ -52,7 +52,7 @@ class Model:
         '''
         Return list of tuples with the bounds for each parameter.
         '''
-        return [(p.min, p.max) for n, p in self._parameters.iteritems()]
+        return [(p.min, p.max) for n, p in self._parameters.items()]
 
     def set_bounds(self, param_name, xmin, xmax):
         '''
@@ -65,7 +65,7 @@ class Model:
         '''
         Return list of tuples with the bounds for each parameter.
         '''
-        return [p.expr for n, p in self._parameters.iteritems()]
+        return [p.expr for n, p in self._parameters.items()]
 
     def pdf(self, data, params=None):
         '''
@@ -97,7 +97,7 @@ class Model:
                     parameters and their correlations in a tuple (sigma, correlation_matrix)
         '''
 
-        for i, (pname, pobj) in enumerate(self._parameters.iteritems()):
+        for i, (pname, pobj) in enumerate(self._parameters.items()):
             if isinstance(params, np.ndarray):
                 self._parameters[pname].value = params[i]
             else:
@@ -172,8 +172,8 @@ class CombinedModel(Model):
         '''
 
         if len(data) is not len(self.models):
-            print 'The number of datasets must be the same as the number of models!!!'
-            print 'There are {0} models'.format(len(self.models))
+            print('The number of datasets must be the same as the number of models!!!')
+            print('There are {0} models'.format(len(self.models)))
             return
 
         if isinstance(params, np.ndarray):

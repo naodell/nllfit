@@ -168,13 +168,13 @@ def double_exp(x, a):
 # toy MC p-value calculator #
 def calc_local_pvalue(N_bg, var_bg, N_sig, var_sig, ntoys=1e7):
 
-    print ''
-    print 'Calculating local p-value and significance based on {0} toys...'.format(int(ntoys))
+    print('')
+    print('Calculating local p-value and significance based on {0} toys...'.format(int(ntoys)))
     toys    = rng.normal(N_bg, var_bg, int(ntoys))
     pvars   = rng.poisson(toys)
     pval    = pvars[pvars > N_bg + N_sig].size/pvars.size
-    print 'local p-value = {0}'.format(pval)
-    print 'local significance = {0:.2f}'.format(np.abs(norm.ppf(pval)))
+    print('local p-value = {0}'.format(pval))
+    print('local significance = {0:.2f}'.format(np.abs(norm.ppf(pval))))
 
     return pval
 
