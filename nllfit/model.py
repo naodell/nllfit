@@ -122,10 +122,14 @@ class Model:
         if np.any(params) is None:
             params = [p.value for p in self._parameters.values()]
         elif isinstance(params, Parameters):
-            params = [params[n].value for n in self._parameters.keys()]
+            params = [params[k].value for k in self._parameters.keys()]
 
         pdf = self._pdf(data, params)
-        nll = -np.sum(np.log(pdf))
+        # remove underflow, overflow, and nan
+        pdf = pdf[(pdf != np.nan) & (pdf != np.inf) & (pdf != 0)]
+        # scale nll based on size of input dataset to keep value from getting too large
+        nll = -np.sum(np.log(pdf))/100.
+
         return nll
 
 
