@@ -128,7 +128,7 @@ class Model:
         # remove underflow, overflow, and nan
         pdf = pdf[(pdf != np.nan) & (pdf != np.inf) & (pdf != 0)]
         # scale nll based on size of input dataset to keep value from getting too large
-        nll = -np.sum(np.log(pdf))/100.
+        nll = -np.sum(np.log(pdf))
 
         return nll
 

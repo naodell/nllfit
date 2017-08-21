@@ -101,12 +101,15 @@ class NLLFitter:
             params_init = self._model.get_parameters(by_value=True)
 
         if mode == 'local':
-            result = minimize(self._objective,
-                              params_init,
-                              method=self.min_algo,
-                              bounds=self._model.get_bounds(),
+            result = minimize(self._objective, params_init,
+                              method = self.min_algo,
+                              bounds = self._model.get_bounds(),
                               #constraints = self._model.get_constraints(),
-                              args=(data)
+                              args   = (data),
+                              options = {
+                                  'ftol':1e-6*np.sqrt(data.size),
+                                  'eps':1.5e-8*np.sqrt(data.size),
+                                  }
                               )
         #elif mode == 'global':
         #    result = basinhopping(self._objective,
