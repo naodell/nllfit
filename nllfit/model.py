@@ -48,6 +48,23 @@ class Model:
         else:
             return self._parameters
 
+    def fix_parameters(self, names=None):
+        '''
+        Fixes parameters to their current value.  If names are not specified,
+        all parameters are fixed.
+
+        Parameters:
+        ===========
+        names: paramters to fix. 
+        '''
+        
+        for n, _ in self._parameters.items():
+            if names != None:
+                if n in names:
+                    self._parameters[n].vary = False
+            else:
+                self._parameters[n].vary = False
+
     def get_bounds(self):
         '''
         Return list of tuples with the bounds for each parameter.
@@ -126,7 +143,7 @@ class Model:
 
         pdf = self._pdf(data, params)
         # remove underflow, overflow, and nan
-        pdf = pdf[(pdf != np.nan) & (pdf != np.inf) & (pdf != 0)]
+        pdf = pdf[(pdf != np.nan) & (pdf != np.inf) & (pdf != 0) & (pdf > 0.)]
         # scale nll based on size of input dataset to keep value from getting too large
         nll = -np.sum(np.log(pdf))
 

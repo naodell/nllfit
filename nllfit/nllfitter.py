@@ -6,7 +6,7 @@ from itertools import product
 
 import numpy as np
 import numdifftools as nd
-from scipy.optimize import minimize
+from scipy.optimize import minimize, basinhopping
 from lmfit import report_fit
 from functools import partial
 
@@ -100,6 +100,7 @@ class NLLFitter:
         else:
             params_init = self._model.get_parameters(by_value=True)
 
+        result = 0
         if mode == 'local':
             result = minimize(self._objective, params_init,
                               method = self.min_algo,
@@ -111,14 +112,24 @@ class NLLFitter:
                                   'eps':1.5e-8*np.sqrt(data.size),
                                   }
                               )
-        #elif mode == 'global':
-        #    result = basinhopping(self._objective,
-        #                          params_init,
-        #                          method=self.min_algo,
-        #                          bounds=self._model.get_bounds(),
-        #                          #constraints = self._model.get_constraints(),
-        #                          args=(data)
-        #                         )
+        elif mode == 'global':
+            result = basinhopping(self._objective,
+                                  params_init,
+                                  minimizer_kwargs = { 
+                                      'bounds':self._model.get_bounds(),
+                                      'method':self.min_algo, 
+                                      'args':(data),
+                                      #'constraints':self._model.get_constraints(),
+                                      'options':{
+                                          'ftol':1e-6*np.sqrt(data.size),
+                                          'eps':1.5e-8*np.sqrt(data.size),
+                                          }
+                                      }
+                                 )
+            if result.fun != np.nan:
+                result.status = 0
+            else:
+                result.status = -1
 
         if self.verbose:
             print('Fit finished with status: {0}'.format(result.status))
