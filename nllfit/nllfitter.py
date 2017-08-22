@@ -100,7 +100,6 @@ class NLLFitter:
         else:
             params_init = self._model.get_parameters(by_value=True)
 
-        result = 0
         if mode == 'local':
             result = minimize(self._objective, params_init,
                               method = self.min_algo,
@@ -115,6 +114,7 @@ class NLLFitter:
         elif mode == 'global':
             result = basinhopping(self._objective,
                                   params_init,
+                                  niter=200,
                                   minimizer_kwargs = { 
                                       'bounds':self._model.get_bounds(),
                                       'method':self.min_algo, 
@@ -132,7 +132,7 @@ class NLLFitter:
                 result.status = -1
 
         if self.verbose:
-            print('Fit finished with status: {0}'.format(result.status))
+            print('Fit finished with status: {0}\n'.format(result.status))
 
         if result.status == 0:
             if calculate_corr:
