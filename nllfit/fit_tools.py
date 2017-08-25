@@ -138,7 +138,6 @@ def smeared_exp(x, tau, sigma):
     tau: lifetime of exponential
     sigma: width of Gaussian convolution kernel
     '''
-
     f  = 1./(2*tau) * np.exp(-x/tau + sigma**2/(2*tau**2))
     f *= (1 - erf((sigma**2/tau - x)/(sigma*np.sqrt(2))))
 

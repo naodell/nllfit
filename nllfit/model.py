@@ -141,10 +141,12 @@ class Model:
         elif isinstance(params, Parameters):
             params = [params[k].value for k in self._parameters.keys()]
 
+        # handle underflow, overflow, negative values and nan by setting them
+        # to a very small positive value.  Perhpas there is a more
+        # sophisticated way of addressing this
         pdf = self._pdf(data, params)
-        # remove underflow, overflow, and nan
-        pdf = pdf[(pdf != np.nan) & (pdf != np.inf) & (pdf != 0)]
-        # scale nll based on size of input dataset to keep value from getting too large
+        pdf[(pdf == np.nan) | (pdf == np.inf)] = 1e-15
+        pdf[pdf <= 0] = 1e-15
         nll = -np.sum(np.log(pdf))
 
         return nll

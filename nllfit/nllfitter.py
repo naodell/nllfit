@@ -22,32 +22,29 @@ class NLLFitter:
     data     : the dataset or datasets we wish to carry out the modelling on
     min_algo : algorith used for minimizing the nll (uses available scipy.optimize algorithms)
     verbose  : control verbosity of fit method
-    fcons    : constraint function; should take arguments of the form (sig_pdf, params)
     '''
-    def __init__(self, model, min_algo='SLSQP', verbose=True, lmult=(0., 0.), fcons=None):
+    def __init__(self, model, min_algo='SLSQP', verbose=True):
         self._model    = model
         self.min_algo  = min_algo
         self.verbose   = verbose
-        self._lmult    = lmult
-        self._fcons    = fcons
+        self.aux_cost  = None
 
     def _objective(self, params, data):
         '''
         Default objective function.  Perhaps it would make sense to make this
-        easy to specify.  Includes L1 and L2 regularization terms which might
-        be problematic...
+        easy to specify.  If an auxiliary cost function is included it will be
+        accounted for here by being added to the nll cost.  
 
         Parameters:
         ==========
-        a: model parameters in an numpy array
+        params: model parameters in an numpy array
+        data: dataset to calculate the NLL on
         '''
 
         model_params = self._model.get_parameters()
         params       = np.array([params[i] if p.vary else p.value
                                  for i, p in enumerate(model_params.values())])
         obj = 0.
-        #if self._fcons:
-        #    obj += self._fcons(self._model._pdf, params)
 
         nll = self._model.calc_nll(params, data)
         if nll is not np.nan:
@@ -67,7 +64,12 @@ class NLLFitter:
         '''
 
         f_obj = partial(self._model.calc_nll, data=x)
-        hcalc = nd.Hessian(f_obj, step=0.01, method='central', full_output=True)
+        #step_gen = nd.
+        hcalc = nd.Hessian(f_obj, 
+                           step=1e-2, 
+                           method='central', 
+                           full_output=True
+                          )
         hobj  = hcalc(params)[0]
         hinv  = np.linalg.pinv(hobj)
 

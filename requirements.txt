@@ -3,3 +3,4 @@ numdifftools
 pandas
 scipy
 numpy
+numba
