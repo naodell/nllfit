@@ -50,7 +50,7 @@ class NLLFitter:
 
         return obj
 
-    def _get_corr_mc(self, x, params, ntoys=100):
+    def _get_corr_mc(self, x, params, ntoys=200):
         '''
         Calculate covariance using MC 
 
@@ -71,10 +71,14 @@ class NLLFitter:
             if r.status == 0:
                 pparams.append(r.x)
 
+        if np.size(pparams) < 0.1*ntoys:
+            print('WARNING! > 90% of bootstrap fits are failing.')
+
         pparams = np.array(pparams).transpose()
         cov = np.cov(pparams)
         sig = np.sqrt(cov.diagonal())
         corr_matrix = cov/np.outer(sig, sig)
+
         return sig, corr_matrix
 
     def _get_corr_hess(self, x, params):
@@ -171,9 +175,14 @@ class NLLFitter:
         if result.status == 0:
             if calculate_corr:
                 if cov_type == 'bootstrap':
+                    print('Calculating covariance by bootstrap...')
                     sigma, corr = self._get_corr_mc(data, result.x)
-                else:
+                elif cov_type == 'hess':
+                    print('Calculating covariance by Hessian inversion...')
                     sigma, corr = self._get_corr_hess(data, result.x)
+                else:
+                    print('Covariance calculation {0} not recognized!'.format(cov_type))
+                    sigma, corr = result.x, np.identity(np.size(result.x))
             else:
                 sigma, corr = result.x, np.identity(np.size(result.x))
 
