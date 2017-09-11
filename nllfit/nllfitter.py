@@ -52,6 +52,17 @@ class NLLFitter:
 
         return obj
 
+    def _get_corr_mc(self, x, params, ntoys=100):
+        '''
+        Calculate covariance using MC 
+
+        Parameters:
+        ===========
+        x      : the data
+        params : parameter values at which the Hessian will be evaluated.
+        '''
+        pass
+
     def _get_corr(self, x, params):
         '''
         Calculates covariance matrix for model parameters by calculating the
@@ -62,24 +73,28 @@ class NLLFitter:
         x      : the data
         params : parameter values at which the Hessian will be evaluated.
         '''
-
         f_obj = partial(self._model.calc_nll, data=x)
-        #step_gen = nd.
         hcalc = nd.Hessian(f_obj, 
-                           step=1e-2, 
+                           step=1e-2, #[5e-3*p for p in params], 
                            method='central', 
                            full_output=True
                           )
-        hobj  = hcalc(params)[0]
-        hinv  = np.linalg.pinv(hobj)
 
-        # get uncertainties on parameters
-        sig = np.sqrt(hinv.diagonal())
+        hobj = hcalc(params)[0]
+        if np.linalg.det(hobj) != 0:
+            hinv        = np.linalg.pinv(hobj)
+            # calculate the full covariance matrix in the case that the Hessian is non-singular
+            sig         = np.sqrt(hinv.diagonal())
+            corr_matrix = hinv/np.outer(sig, sig)
+            return sig, corr_matrix
 
-        # calculate correlation matrix
-        corr_matrix = hinv/np.outer(sig, sig)
+        else:
+            print('Hessian matrix is singular! Cannot calculate covariance matrix of the likelihood')
+            # if the Hessian is singular, try to just get its diagonal for parameter errors
+            sig         = params 
+            corr_matrix = np.identity(np.size(params))
+            return sig, corr_matrix
 
-        return sig, corr_matrix
 
     def fit(self, data, params_init=None, calculate_corr=True, mode='local'):
         '''
@@ -139,6 +154,7 @@ class NLLFitter:
         if result.status == 0:
             if calculate_corr:
                 sigma, corr = self._get_corr(data, result.x)
+                #sigma, corr = self._get_corr_mc(data, result.x)
             else:
                 sigma, corr = result.x, 0.
 
