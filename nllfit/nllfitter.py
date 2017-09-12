@@ -60,14 +60,22 @@ class NLLFitter:
         params : parameter values at which the Hessian will be evaluated.
         '''
 
-        # Generate the pseudo-data (this could be done in several ways...)
-        rindex = np.random.randint(0, x.size, ntoys*x.size)
-        pdata  = np.array([x[i] for i in rindex])
-        pdata  = pdata.reshape(ntoys, x.size)
+        # Check if dimension of data is greater than one
+        ndata = x.shape[0]
+        ndim = len(x.shape)
+        if ndim > 1:
+            x = x.transpose()
 
+        # Generate the pseudo-data (alternatively, this could be done by sampling the pdf)
         pparams = []
         for i in range(ntoys):
-            r = self.fit(pdata[i], params, calculate_corr=False, verbose=False)
+            rindex = np.random.randint(0, ndata, ndata)
+            pdata  = np.array([x[i] for i in rindex])
+
+            if ndim > 1:
+                pdata.transpose()
+
+            r = self.fit(pdata, params, calculate_corr=False, verbose=False)
             if r.status == 0:
                 pparams.append(r.x)
 
