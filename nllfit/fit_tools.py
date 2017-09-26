@@ -114,16 +114,17 @@ def crystal_ball(x, a):
 def legendre(x, a, xlim=(-1, 1)):
     '''
     Nth order Legendre Polynomial with constant term set to 0.5 to enforce
-    normalization.  Data is scaled to lie within [-1, 1].
+    normalization.  
 
     Parameters:
     ===========
     x: data
-    a: model parameters (a1 and a2)
+    a: an array of coefficients for the polynomial terms.  The order of the
+       polynomial will be equal to the length of a
     '''
-
+    p = np.concatenate(([0.5], a))
     z = scale_data(x, xmin=xlim[0], xmax=xlim[1])
-    f = legval(z, [0.5] + a)*2./(xlim[1] - xlim[0])
+    f = legval(z, p)*2./(xlim[1] - xlim[0])
 
     return f
 
@@ -306,13 +307,13 @@ def fit_plot_1D(data, sig_model, bg_model, xlim, nbins=20, suffix='mumu', path=N
     binerrs     = np.sqrt(h[0])
     plt.close()
 
-    fig, ax = plt.subplots(figsize=(6, 6))
+    fig, ax = plt.subplots(figsize=(6, 6), facecolor='white')
     ax.plot(x, y_sig, 'b-', linewidth=2.5)
     ax.plot(x, y_bg1, 'b--', linewidth=2.5)
     ax.plot(x, y_bg2, 'r-.', linewidth=2.5)
     ax.errorbar(bincenters, h[0], yerr=binerrs,
                 fmt='ko', capsize=0, elinewidth=2, markersize=5)
-    ax.legend(['BG+Sig.', 'BG', 'BG only', 'Data'])
+    ax.legend(['BG+Sig.', 'BG', 'BG only', 'Data'], loc=1)
 
     if suffix == 'mumu':
         ax.set_xlabel(r'$\sf m_{\mu\mu}$ [GeV]')

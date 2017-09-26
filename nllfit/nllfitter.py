@@ -22,10 +22,10 @@ class NLLFitter:
     data     : the dataset or datasets we wish to carry out the modelling on
     min_algo : algorith used for minimizing the nll (uses available scipy.optimize algorithms)
     '''
-    def __init__(self, model, min_algo='SLSQP'):
+    def __init__(self, model, min_algo='SLSQP', aux_cost=None):
         self._model    = model
         self.min_algo  = min_algo
-        self.aux_cost  = None
+        self.aux_cost  = aux_cost
 
     def _objective(self, params, data):
         '''
@@ -43,10 +43,12 @@ class NLLFitter:
         params       = np.array([params[i] if p.vary else p.value
                                  for i, p in enumerate(model_params.values())])
         obj = 0.
-
         nll = self._model.calc_nll(params, data)
         if nll is not np.nan:
             obj += nll
+
+        if callable(self.aux_cost):
+            obj += self.aux_cost(params)
 
         return obj
 
@@ -212,7 +214,7 @@ class NLLFitter:
         ===========
         scan_params : ScanParameters class object specifying parameters to be scanned over
         data        : dataset to fit the models to
-        amps        : indices of signal amplitude parameters
+        amps        : indices of signal amplitude parameters (useful for keeping track d.o.f.)
         '''
 
         ### Save bounds for parameters to be scanned so that they can be reset
@@ -223,11 +225,12 @@ class NLLFitter:
             saved_bounds[name] = (params[name].min, params[name].max)
 
         nllscan     = []
-        dofs        = []  # The d.o.f. of the field will vary depending on the amplitudes
+        dofs        = []  # The d.o.f. of the field will vary depending on which amplitudes are > 0
         best_params = 0.
         nll_min     = 1e9
         scan_vals, scan_div = scan_params.get_scan_vals()
         for i, scan in enumerate(scan_vals):
+
             ### set bounds of model parameters being scanned over
             for j, name in enumerate(scan_params.names):
                 self._model.set_bounds(name, scan[j], scan[j]+scan_div[j])
@@ -239,7 +242,6 @@ class NLLFitter:
                               params_init,
                               method = self.min_algo,
                               bounds = self._model.get_bounds(),
-                              #constraints = self._model.get_constraints(),
                               args   = (data)
                               )
 
@@ -251,7 +253,7 @@ class NLLFitter:
                     nll_min = nll
 
                 if amps:
-                    dofs.append(np.sum(result.x[amps] > 1e-6))
+                    dofs.append(np.sum(result.x[amps] > 1e-9))
             else:
                 continue
 
@@ -260,7 +262,8 @@ class NLLFitter:
             self._model.set_bounds(name, saved_bounds[name][0], saved_bounds[name][1])
 
         nllscan = np.array(nllscan)
-        dofs = np.array(dofs)
+        dofs    = np.array(dofs)
+        
         return nllscan, best_params, dofs
 
 class ScanParameters:

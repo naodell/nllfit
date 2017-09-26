@@ -30,9 +30,9 @@ class Model:
                   function will return the lmfit Parameters object
         '''
         if by_value:
-            return [p.value for p in self._parameters.values()]
+            return self._parameters[name].value
         else:
-            return self._parameters
+            return self._parameters[name]
 
     def get_parameters(self, by_value=False):
         '''
