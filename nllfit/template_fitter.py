@@ -32,11 +32,13 @@ class TemplateFitter():
     '''
     Fits templates to provided dataset.  Currently only works for binned data.
     '''
-    def __init__(self, templates, bins=None, params_init=None):
-        self._templates = self._initialize_templates(templates)
-        self._ntemp     = np.shape(templates)[0]
-        self._bins      = bins
-        self._params    = np.array((self._ntemp - 1)*[1./np.size(templates), ]) if params_init==None else params_init
+    def __init__(self, templates, bins, tvars, params_init=None, aux_cost=None):
+        self._initialize_templates(templates)
+        self._tvars    = tvars
+        self._bins     = bins
+        self._ntemp    = np.shape(templates)[0]
+        self._params   = np.array((self._ntemp - 1)*[1./np.size(templates), ]) if params_init is None else params_init
+        self._aux_cost = aux_cost
 
     def _initialize_templates(self, templates):
         '''
@@ -45,34 +47,113 @@ class TemplateFitter():
         normed_templates = [] 
         for t in templates:
             normed_templates.append(t/np.sum(t))
-        return normed_templates
+        self._templates = normed_templates
 
-    def calc_nll(self, params, data, templates):
+    def calc_nll_binned(self, params, data, templates, ndata):
         '''
-        Calculates the nll given the (digitized) data.
+        Calculates the chi2 on binned data.
         '''
-        a = np.concatenate((params, [1 - np.sum(params)]))
-        p = [t[data] for t in templates]
-        f = np.dot(a, p)
+
+        #prepare templates
+        p_i  = np.concatenate((params, [1 - np.sum(params)]))
+        var  = np.sum(self._tvars + data, axis=0)
+        fx   = np.dot(np.transpose(self._templates), p_i)
+
+        # remove empty bins
+        mask = var > 0
+        data, fx, var = data[mask], fx[mask], var[mask]
+
+        # calculate chi2
+        chi2 = (data - ndata*fx)**2/var
+        cost = np.sum(chi2)
+
+        # auxiliary cost to constrain specific components
+        if self._aux_cost is not None:
+            cost += self._aux_cost(params=params) 
+
+        return cost
+
+    def calc_nll_unbinned(self, params, data, templates):
+        '''
+        Calculates an unbinned nll on (digitized) data.
+        '''
+        fx = np.concatenate((params, [1 - np.sum(params)]))
+        p  = [t[data] for t in templates]
+        f  = np.dot(fx, p)
         cost = -np.sum(np.log(f))
         return cost
 
-    def fit(self, data):
+    def fit(self, data, binned=True, bg_data=None):
         '''
-        Fit to the provided dataset
+        Fit to the dataset.
         '''
-        digi_data = np.digitize(data, self._bins[:-1]) - 1
-        result = minimize(self.calc_nll, self._params,
-                          method      = 'SLSQP',
-                          bounds      = (self._ntemp - 1)*[(0,1),],
-                          args        = (digi_data, self._templates),
-                          #constraints = {'eq':lambda a: 1 - np.sum(a)}
-                         )
-        return result
+        if binned:
+            binned_data, _ = np.histogram(data, bins=self._bins)
+            ndata = np.sum(binned_data)
+
+            if not isinstance(bg_data, type(None)):
+                binned_bg, _  = np.histogram(bg_data, bins=self._bins)
+                binned_data  -= binned_bg
+                ndata        -= np.sum(binned_bg)
+
+            result = minimize(self.calc_nll_binned, self._params,
+                              method      = 'SLSQP',
+                              bounds      = (self._ntemp - 1)*[(0,1),],
+                              args        = (binned_data, self._templates, ndata),
+                             )
+            sig, corr_matrix = self._get_corr_hess(binned_data, result.x, binned=True)
+
+        else:
+            digi_data = np.digitize(data, self._bins[:-1]) - 1
+            result = minimize(self.calc_nll_unbinned, self._params,
+                              method      = 'SLSQP',
+                              bounds      = (self._ntemp - 1)*[(0,1),],
+                              args        = (digi_data, self._templates),
+                             )
+
+            sig, corr_matrix = self._get_corr_hess(digi_data, result.x, binned=False)
+
+        return result, (sig, corr_matrix)
+
+    def _get_corr_hess(self, x, params, binned):
+        '''
+        Calculates covariance matrix for model parameters by calculating the
+        Hessian of the NLL conditioned on the dataset being fit to.
+
+        Parameters:
+        ===========
+        x      : the data
+        params : parameter values at which the Hessian will be evaluated.
+        '''
+        if binned:
+            f_obj = partial(self.calc_nll_binned, data=x, templates=self._templates, ndata=np.sum(x))
+        else:
+            f_obj = partial(self.calc_nll_unbinned, data=x, templates=self._templates)
+
+        hcalc = nd.Hessian(f_obj, 
+                           step        = 1e-2, #[5e-3*p for p in params],
+                           method      = 'central',
+                           full_output = True
+                          )
+
+        hobj = hcalc(params)[0]
+        if np.linalg.det(hobj) != 0:
+            # calculate the full covariance matrix in the case that the Hessian is non-singular
+            hinv        = np.linalg.pinv(hobj)
+            sig         = np.sqrt(hinv.diagonal())
+            corr_matrix = hinv/np.outer(sig, sig)
+            return sig, corr_matrix
+        else:
+            print('Hessian matrix is singular! Cannot calculate covariance matrix of the likelihood')
+            # if the Hessian is singular, try to just get its diagonal for parameter errors
+            sig         = params 
+            corr_matrix = np.identity(np.size(params))
+            return sig, corr_matrix
 
     def scan_nll(self, scan_vals, data, param_min):
         '''
-        Scans the nll for each mixture parameter while holding the remaining parameters fixed.
+        Scans the nll for each mixture parameter while holding the remaining
+        parameters fixed.
         '''
         digi_data = np.digitize(data, self._bins[:-1]) - 1
         func      = partial(self.calc_nll, data=digi_data, templates=self._templates)
